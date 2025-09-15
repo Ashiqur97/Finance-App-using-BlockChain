@@ -1,31 +1,31 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
 
+pragma solidity ^0.8.17;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract FinanceCore is Ownable,ReentrancyGuard {
+contract FinanceCore is Ownable, ReentrancyGuard {
     constructor() Ownable(msg.sender) {}
-
-    mapping (address => uint256) public balances;
-
-    event Deposit(address indexed user, uint256 amount,uint256 timestamp);
+    
+    mapping(address => uint256) public balances;
+    
+    event Deposit(address indexed user, uint256 amount, uint256 timestamp);
     event Withdrawal(address indexed user, uint256 amount, uint256 timestamp);
-
+    
     function deposit() external payable {
         require(msg.value > 0, ">0");
         balances[msg.sender] += msg.value;
-        emit Deposit(msg.sender,msg.value,block.timestamp);
+        emit Deposit(msg.sender, msg.value, block.timestamp);
     }
-
+    
     function withdraw(uint256 amount) external nonReentrant {
-        require(balances[msg.sender] >= amount, "Insufficient balance");
+        require(balances[msg.sender] >= amount, "Insufficient");
         require(amount > 0, ">0");
         balances[msg.sender] -= amount;
         payable(msg.sender).transfer(amount);
         emit Withdrawal(msg.sender, amount, block.timestamp);
     }
-
+    
     function getBalance() external view returns (uint256) {
         return balances[msg.sender];
     }
@@ -41,13 +41,13 @@ contract Loans is FinanceCore {
         bool active;
         bool repaid;
     }
-
-    mapping (address => Loan[]) public loans;
-
-    event LoanTaken(address indexed borrower,uint256 amount,uint256 interestRate,uint256 duration);
-    event LoanRepaid(address indexed borrower,uint256 amount);
-
-        function takeLoan(uint256 amount, uint256 interestRate, uint256 duration) external nonReentrant {
+    
+    mapping(address => Loan[]) public loans;
+    
+    event LoanTaken(address indexed borrower, uint256 amount, uint256 interestRate, uint256 duration);
+    event LoanRepaid(address indexed borrower, uint256 amount);
+    
+    function takeLoan(uint256 amount, uint256 interestRate, uint256 duration) external nonReentrant {
         require(amount > 0, ">0");
         require(interestRate > 0 && interestRate <= 100, "Rate 1-100");
         require(duration > 0, ">0");
@@ -65,8 +65,8 @@ contract Loans is FinanceCore {
         balances[msg.sender] += amount;
         emit LoanTaken(msg.sender, amount, interestRate, duration);
     }
-
-      function repayLoan(uint256 loanIndex) external payable nonReentrant {
+    
+    function repayLoan(uint256 loanIndex) external payable nonReentrant {
         require(loanIndex < loans[msg.sender].length, "Invalid");
         Loan storage loan = loans[msg.sender][loanIndex];
         require(loan.active && !loan.repaid, "Not active");
@@ -83,14 +83,13 @@ contract Loans is FinanceCore {
         
         emit LoanRepaid(msg.sender, repaymentAmount);
     }
-
+    
     function getLoans() external view returns (Loan[] memory) {
         return loans[msg.sender];
-    } 
+    }
 }
 
 contract Investments is FinanceCore {
-
     struct Investment {
         address investor;
         uint256 amount;
@@ -98,13 +97,13 @@ contract Investments is FinanceCore {
         uint256 startTime;
         bool active;
     }
-
-    mapping (address => Investment[]) public investments;
-
+    
+    mapping(address => Investment[]) public investments;
+    
     event InvestmentMade(address indexed investor, uint256 amount, string investmentType);
     event InvestmentWithdrawn(address indexed investor, uint256 amount, string investmentType);
-
-        function makeInvestment(string memory investmentType) external payable {
+    
+    function makeInvestment(string memory investmentType) external payable {
         require(msg.value > 0, ">0");
         
         investments[msg.sender].push(Investment({
@@ -117,8 +116,8 @@ contract Investments is FinanceCore {
         
         emit InvestmentMade(msg.sender, msg.value, investmentType);
     }
-
-        function withdrawInvestment(uint256 investmentIndex) external nonReentrant {
+    
+    function withdrawInvestment(uint256 investmentIndex) external nonReentrant {
         require(investmentIndex < investments[msg.sender].length, "Invalid");
         Investment storage investment = investments[msg.sender][investmentIndex];
         require(investment.active, "Not active");
@@ -129,11 +128,190 @@ contract Investments is FinanceCore {
         
         emit InvestmentWithdrawn(msg.sender, returnAmount, investment.investmentType);
     }
-
-        function getInvestments() external view returns (Investment[] memory) {
+    
+    function getInvestments() external view returns (Investment[] memory) {
         return investments[msg.sender];
     }
 }
 
+contract Expenses is FinanceCore {
+    struct Expense {
+        address user;
+        uint256 amount;
+        string category;
+        uint256 timestamp;
+        string description;
+    }
+    
+    mapping(address => Expense[]) public expenses;
+    
+    event ExpenseAdded(address indexed user, uint256 amount, string category, string description);
+    
+    function addExpense(string memory category, string memory description) external payable {
+        require(msg.value > 0, ">0");
+        
+        expenses[msg.sender].push(Expense({
+            user: msg.sender,
+            amount: msg.value,
+            category: category,
+            timestamp: block.timestamp,
+            description: description
+        }));
+        
+        emit ExpenseAdded(msg.sender, msg.value, category, description);
+    }
+    
+    function getExpenses() external view returns (Expense[] memory) {
+        return expenses[msg.sender];
+    }
+}
 
+contract Budgets is FinanceCore {
+    struct Budget {
+        address user;
+        string category;
+        uint256 amount;
+        uint256 month;
+        uint256 year;
+    }
+    
+    mapping(address => Budget[]) public budgets;
+    
+    event BudgetSet(address indexed user, string category, uint256 amount, uint256 month, uint256 year);
+    
+    function setBudget(string memory category, uint256 amount, uint256 month, uint256 year) external {
+        require(amount > 0, ">0");
+        require(month > 0 && month <= 12, "Invalid month");
+        require(year >= 2023, "Year >= 2023");
+        
+        bool budgetExists = false;
+        for (uint256 i = 0; i < budgets[msg.sender].length; i++) {
+            if (keccak256(abi.encodePacked(budgets[msg.sender][i].category)) == keccak256(abi.encodePacked(category)) &&
+                budgets[msg.sender][i].month == month &&
+                budgets[msg.sender][i].year == year) {
+                budgets[msg.sender][i].amount = amount;
+                budgetExists = true;
+                break;
+            }
+        }
+        
+        if (!budgetExists) {
+            budgets[msg.sender].push(Budget({
+                user: msg.sender,
+                category: category,
+                amount: amount,
+                month: month,
+                year: year
+            }));
+        }
+        
+        emit BudgetSet(msg.sender, category, amount, month, year);
+    }
+    
+    function getBudgets() external view returns (Budget[] memory) {
+        return budgets[msg.sender];
+    }
+}
 
+contract SavingsGoals is FinanceCore {
+    struct SavingsGoal {
+        address user;
+        string name;
+        string description;
+        uint256 targetAmount;
+        uint256 currentAmount;
+        uint256 deadline;
+        bool completed;
+    }
+    
+    mapping(address => SavingsGoal[]) public savingsGoals;
+    
+    event SavingsGoalCreated(address indexed user, string name, uint256 targetAmount, uint256 deadline);
+    event SavingsGoalContributed(address indexed user, string name, uint256 amount);
+    event SavingsGoalCompleted(address indexed user, string name);
+    
+    function createSavingsGoal(string memory name, string memory description, uint256 targetAmount, uint256 deadline) external {
+        require(targetAmount > 0, ">0");
+        require(deadline > block.timestamp, "Future");
+        
+        savingsGoals[msg.sender].push(SavingsGoal({
+            user: msg.sender,
+            name: name,
+            description: description,
+            targetAmount: targetAmount,
+            currentAmount: 0,
+            deadline: deadline,
+            completed: false
+        }));
+        
+        emit SavingsGoalCreated(msg.sender, name, targetAmount, deadline);
+    }
+    
+    function contributeToSavingsGoal(uint256 goalIndex) external payable {
+        require(goalIndex < savingsGoals[msg.sender].length, "Invalid");
+        require(msg.value > 0, ">0");
+        
+        SavingsGoal storage goal = savingsGoals[msg.sender][goalIndex];
+        require(!goal.completed, "Completed");
+        require(block.timestamp <= goal.deadline, "Expired");
+        
+        goal.currentAmount += msg.value;
+        
+        if (goal.currentAmount >= goal.targetAmount) {
+            goal.completed = true;
+            emit SavingsGoalCompleted(msg.sender, goal.name);
+        }
+        
+        emit SavingsGoalContributed(msg.sender, goal.name, msg.value);
+    }
+    
+    function getSavingsGoals() external view returns (SavingsGoal[] memory) {
+        return savingsGoals[msg.sender];
+    }
+}
+
+contract Transactions is FinanceCore {
+    struct Transaction {
+        address user;
+        uint256 amount;
+        string transactionType;
+        uint256 timestamp;
+        string details;
+    }
+    
+    mapping(address => Transaction[]) public transactions;
+    
+    function getTransactionCount() external view returns (uint256) {
+        return transactions[msg.sender].length;
+    }
+    
+    function getTransactions() external view returns (Transaction[] memory) {
+        return transactions[msg.sender];
+    }
+    
+    function getCurrentMonthExpenses(string memory category) external view returns (uint256) {
+        uint256 currentMonth = (block.timestamp / 2592000) % 12 + 1;
+        uint256 currentYear = 1970 + (block.timestamp / 31536000);
+        
+        uint256 totalExpenses = 0;
+        
+        for (uint256 i = 0; i < transactions[msg.sender].length; i++) {
+            Transaction storage transaction = transactions[msg.sender][i];
+            uint256 txMonth = (transaction.timestamp / 2592000) % 12 + 1;
+            uint256 txYear = 1970 + (transaction.timestamp / 31536000);
+            
+            if (keccak256(abi.encodePacked(transaction.details)) == keccak256(abi.encodePacked(category)) &&
+                txMonth == currentMonth &&
+                txYear == currentYear) {
+                totalExpenses += transaction.amount;
+            }
+        }
+        
+        return totalExpenses;
+    }
+}
+
+// Main contract that inherits all functionality
+contract Finance is FinanceCore, Loans, Investments, Expenses, Budgets, SavingsGoals, Transactions {
+    constructor() FinanceCore() {}
+}
