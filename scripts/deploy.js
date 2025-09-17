@@ -9,14 +9,15 @@ async function main() {
   // Deploy the contract
   const finance = await Finance.deploy();
 
-  // Wait for the contract to be deployed
-  await finance.deployed();
+  // Wait for the contract to be deployed (in ethers v6, we wait for the deployment transaction)
+  await finance.waitForDeployment();
 
-  console.log("Finance contract deployed to:", finance.address);
+  console.log("Finance contract deployed to:", await finance.getAddress());
 
   // Optional: Log deployment details
-  console.log("Deployment transaction hash:", finance.deployTransaction.hash);
-  console.log("Gas used:", finance.deployTransaction.gasLimit.toString());
+  const deploymentTransaction = finance.deploymentTransaction();
+  console.log("Deployment transaction hash:", deploymentTransaction.hash);
+  console.log("Gas used:", deploymentTransaction.gasLimit.toString());
 }
 
 main()
